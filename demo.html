@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>基于webgl的热力图</title>
+    <meta charset="utf-8" />
+    <style type="text/css">
+        canvas{
+            margin-top: -3px
+        }
+        button{
+                position: absolute;
+                width: 158px;
+                height: 69px;
+        }
+    </style>
+</head>
+
+<body style="background: #000;">
+    <button id="btn">点击改变参数</button>
+    <script type="text/javascript" src="WebGL.HeatMap.js"></script>
+    <script type="text/javascript">
+    var fackData = [];
+    for (var i = 0; i < 10000; i++) {
+        fackData.push([Math.random() * 2048, Math.random() * 900, Math.floor(Math.random() * 600)]);
+    }
+
+
+    var z = WebGLCanvas.render({
+        width:1024,
+        height:100,
+        radius: 25,
+        max: 800,
+        min: 100,
+        filter: 12
+    }, fackData);
+    for (var i = 0; i < z.length; i++) {
+        document.body.appendChild(z[i]);
+    };
+
+    btn.onclick=function(){
+        WebGLCanvas.reset({
+        width:1024,
+        height:100,
+        radius: 10+Math.random()*20,
+        max: 800,
+        min: 100,
+        filter: 12
+    },z);
+    }
+    </script>
+</body>
+
+</html>
