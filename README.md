@@ -1,5 +1,6 @@
 # WebGL-HeatMap
 ###基于webgl的 热力图插件
+##[Demo](http://wshxbqq-wshxbqq.stor.sinaapp.com/2016-02-15_16-49-51_518___demo.html)
 #####使用方法
 ```javascript
 var fackData = [];
