@@ -3,9 +3,9 @@
 ##[Demo](http://wshxbqq-wshxbqq.stor.sinaapp.com/2016-02-15_16-49-51_518___demo.html)
 #####使用方法
 ```javascript
-var fackData = [];
+var fakeData = [];
     for (var i = 0; i < 10000; i++) {
-        fackData.push([Math.random() * 2048, Math.random() * 900, Math.floor(Math.random() * 600)]);
+        fakeData.push([Math.random() * 2048, Math.random() * 900, Math.floor(Math.random() * 600)]);
     }
 
 
@@ -16,13 +16,13 @@ var fackData = [];
         max: 800,
         min: 100,
         filter: 12
-    }, fackData);
+    }, fakeData);
     for (var i = 0; i < z.length; i++) {
         document.body.appendChild(z[i]);
     };
 ```
 
-可以看到 插件需要的数据格式为 fackData 提供的格式。
+可以看到 插件需要的数据格式为 fakeData 提供的格式。
 
 
 `WebGLCanvas.render(cfg,data)` 方法返回的是一个 多个canvas的数组。
