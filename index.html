@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f8f4">
+  <meta name="description" content="用 WebGL 2 渲染加权点热力图，交互调节半径、强度和配色。">
+  <title>WebGL 热力图</title>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="./">WebGL-HeatMap</a>
+    <a href="https://github.com/wshxbqq/WebGL-HeatMap">GitHub</a>
+  </header>
+  <main>
+    <header class="intro">
+      <h1>WebGL 热力图</h1>
+      <p>查看加权点如何聚成连续的密度图。选择示例数据，或导入自己的点。</p>
+    </header>
+
+    <div class="workspace">
+      <figure class="map" aria-label="热力图">
+        <div class="canvas-wrap">
+          <canvas id="heatmap" tabindex="0" aria-label="热力图预览，点击添加点，也可以按 Enter 在中心添加点" aria-describedby="map-help"></canvas>
+        </div>
+        <figcaption>
+          <div class="legend" aria-label="密度色带">
+            <span>低密度</span><span id="legend-ramp" aria-hidden="true"></span><span>高密度</span>
+          </div>
+          <p id="map-help">点击画布添加点，按 Enter 可在中心添加。</p>
+        </figcaption>
+      </figure>
+
+      <aside class="controls" aria-labelledby="controls-title">
+        <h2 id="controls-title">渲染参数</h2>
+        <label for="dataset">数据源</label>
+        <select id="dataset"></select>
+        <p class="count" id="point-count" aria-live="polite"></p>
+
+        <label class="slider-label" for="radius">点半径 <output id="radius-value" for="radius"></output></label>
+        <input id="radius" type="range" min="8" max="96" step="1">
+
+        <label class="slider-label" for="intensity">强度 <output id="intensity-value" for="intensity"></output></label>
+        <input id="intensity" type="range" min="0.2" max="3" step="0.05">
+
+        <label class="slider-label" for="threshold">密度阈值 <output id="threshold-value" for="threshold"></output></label>
+        <input id="threshold" type="range" min="0" max="0.95" step="0.005">
+
+        <label for="palette">配色</label>
+        <select id="palette">
+          <option value="thermal">冷暖</option>
+          <option value="sunset">晚霞</option>
+          <option value="lagoon">青绿</option>
+        </select>
+        <label class="checkbox"><input id="grid" type="checkbox"> 显示网格</label>
+        <div class="actions">
+          <button id="import" type="button">导入 CSV</button>
+          <input id="file" type="file" accept=".csv,text/csv" hidden>
+          <button id="reset" type="button">重置</button>
+          <button id="export" class="primary" type="button" disabled>导出 PNG</button>
+        </div>
+      </aside>
+    </div>
+    <p id="status" class="status" role="status"></p>
+
+    <section class="pipeline" aria-labelledby="pipeline-title">
+      <h2 id="pipeline-title">从点到密度</h2>
+      <ol>
+        <li><strong>累加权重</strong><span>对每个点绘制一个实例化四边形，片元着色器按距离衰减，并把重叠贡献加进密度纹理。</span></li>
+        <li><strong>映射色带</strong><span>全屏着色器读取密度纹理，应用强度和阈值，再通过五个色标插值得到画面颜色。</span></li>
+      </ol>
+    </section>
+  </main>
+  <noscript>请启用 JavaScript 后打开热力图。</noscript>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
