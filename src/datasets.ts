@@ -4,6 +4,8 @@ export const datasetNames = {
   clusters: "城市热点",
   corridors: "交通走廊",
   uniform: "均匀分布",
+  overlap: "权重与叠加",
+  scale: "万点压力测试",
 } as const;
 
 export type Dataset = keyof typeof datasetNames;
@@ -44,6 +46,20 @@ export function makeDataset(dataset: Dataset): HeatPoint[] {
         ? 0.68 - 0.34 * x + jitter() * 0.55
         : 0.37 + Math.sin(x * 8) * 0.20 + jitter() * 0.50;
       return point(x, y);
+    });
+  }
+  if (dataset === "overlap") {
+    return [
+      { x: 0.23, y: 0.5, weight: 1 },
+      { x: 0.5, y: 0.5, weight: 0.5 },
+      { x: 0.5, y: 0.5, weight: 0.5 },
+      { x: 0.76, y: 0.5, weight: 0.2 },
+    ];
+  }
+  if (dataset === "scale") {
+    return Array.from({ length: 12_000 }, (_, index) => {
+      const [x, y] = clusters[index % clusters.length];
+      return { ...point(x + jitter() * 1.6, y + jitter() * 1.8), weight: 0.02 + random() * 0.06 };
     });
   }
   return Array.from({ length: 380 }, () => point(random(), random()));

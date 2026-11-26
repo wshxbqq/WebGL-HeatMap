@@ -28,6 +28,7 @@ export const defaultOptions: HeatmapOptions = {
 };
 
 export const maxPoints = 50_000;
+export const densityGain = 0.10;
 
 export function isHeatPoint(point: HeatPoint): boolean {
   return [point.x, point.y, point.weight].every((value) =>
@@ -85,7 +86,7 @@ function colorChannels(colors: readonly string[]) {
     [1, 3, 5].map((offset) => Number.parseInt(color.slice(offset, offset + 2), 16) / 255)));
 }
 
-const paletteChannels = {
+export const paletteChannels = {
   thermal: colorChannels(palettes.thermal),
   sunset: colorChannels(palettes.sunset),
   lagoon: colorChannels(palettes.lagoon),
@@ -175,7 +176,7 @@ export class HeatmapRenderer {
     const ratio = Math.min(devicePixelRatio || 1, 2, this.maxSize / Math.max(width, height));
     this.resize(Math.max(1, Math.round(width * ratio)), Math.max(1, Math.round(height * ratio)));
 
-    const gain = options.intensity * 0.10;
+    const gain = options.intensity * densityGain;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0, 0, 0, 0);

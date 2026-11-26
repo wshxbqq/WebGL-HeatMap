@@ -1,4 +1,5 @@
 import "./style.css";
+import { CanvasHeatmapRenderer } from "./canvas-heatmap";
 import { datasetNames, makeDataset, parseCsv, type Dataset } from "./datasets";
 import { defaultOptions, HeatmapRenderer, maxPoints, palettes, type HeatmapOptions, type HeatPoint } from "./heatmap";
 
@@ -6,15 +7,21 @@ function element<Element extends HTMLElement>(id: string): Element {
   return document.getElementById(id) as Element;
 }
 
-const canvas = element<HTMLCanvasElement>("heatmap");
+const gpuCanvas = element<HTMLCanvasElement>("heatmap");
+const cpuCanvas = element<HTMLCanvasElement>("heatmap-2d");
+const gpuPanel = element("gpu-panel");
+const cpuPanel = element("cpu-panel");
+const engine = element<HTMLSelectElement>("engine");
 const preset = element<HTMLSelectElement>("dataset");
 const palette = element<HTMLSelectElement>("palette");
 const grid = element<HTMLInputElement>("grid");
 const file = element<HTMLInputElement>("file");
 const count = element<HTMLParagraphElement>("point-count");
 const status = element<HTMLParagraphElement>("status");
+const renderStatus = element<HTMLParagraphElement>("render-status");
 const exportButton = element<HTMLButtonElement>("export");
 const legend = element<HTMLSpanElement>("legend-ramp");
+const note = element<HTMLParagraphElement>("demo-note");
 
 const sliderFormat = {
   radius: (value: number) => String(value) + " px",
@@ -25,10 +32,21 @@ const sliderKeys = Object.keys(sliderFormat) as (keyof typeof sliderFormat)[];
 const inputs = sliderKeys.map((key) => ({
   key, input: element<HTMLInputElement>(key), output: element<HTMLOutputElement>(key + "-value"),
 }));
+const notes: Record<Dataset | "custom", string> = {
+  clusters: "观察离散点如何形成多个热点。",
+  corridors: "增大半径，观察沿交通线分布的热点如何连起来。",
+  uniform: "观察密度阈值怎样隐藏稀疏区域。",
+  overlap: "左边一个权重为 1 的点，中间两个各为 0.5 的重合点，右边一个权重为 0.2 的点。比较三处峰值。",
+  scale: "12,000 个可复现的样本点。拖动参数观察两种渲染方式。",
+  custom: "正在使用本地 CSV 数据。两种方式共用同一份数据。",
+};
 
-let renderer: HeatmapRenderer | undefined;
+let webgl: HeatmapRenderer | undefined;
+let canvas2d: CanvasHeatmapRenderer | undefined;
+let gpuError = "";
+let cpuError = "";
 let options: HeatmapOptions = { ...defaultOptions };
-let points = makeDataset("clusters");
+let points: HeatPoint[] = [];
 let imported: HeatPoint[] | undefined;
 let frame = 0;
 
@@ -37,27 +55,64 @@ function message(text = "", error = false) {
   status.dataset.error = String(error);
 }
 
-function disableRendering() {
-  renderer?.dispose();
-  renderer = undefined;
-  exportButton.disabled = true;
-  canvas.setAttribute("aria-disabled", "true");
+function updatePanels() {
+  gpuPanel.hidden = !webgl || engine.value === "canvas";
+  cpuPanel.hidden = !canvas2d || (engine.value === "webgl" && Boolean(webgl));
+  exportButton.disabled = gpuPanel.hidden && cpuPanel.hidden;
+  const failures = [
+    engine.value !== "canvas" ? gpuError : "",
+    engine.value !== "webgl" || !webgl ? cpuError : "",
+  ].filter(Boolean);
+  renderStatus.textContent = failures.join(" ");
+  renderStatus.dataset.error = String(failures.length > 0);
+}
+
+function ensureRenderers() {
+  if (!webgl && !gpuError && engine.value !== "canvas") {
+    try {
+      webgl = new HeatmapRenderer(gpuCanvas);
+      webgl.setPoints(points);
+    } catch (error) {
+      webgl?.dispose();
+      webgl = undefined;
+      gpuError = (error as Error).message;
+    }
+  }
+  if (!canvas2d && !cpuError && (engine.value !== "webgl" || !webgl)) {
+    try {
+      canvas2d = new CanvasHeatmapRenderer(cpuCanvas);
+      canvas2d.setPoints(points);
+    } catch (error) {
+      cpuError = (error as Error).message;
+    }
+  }
+  updatePanels();
 }
 
 function draw() {
-  if (!renderer) return false;
-  try {
-    renderer.render(options);
-    return true;
-  } catch (error) {
-    disableRendering();
-    message((error as Error).message, true);
-    return false;
+  if (webgl && !gpuPanel.hidden) {
+    try {
+      webgl.render(options);
+    } catch (error) {
+      webgl.dispose();
+      webgl = undefined;
+      gpuError = (error as Error).message;
+      ensureRenderers();
+    }
+  }
+  if (canvas2d && !cpuPanel.hidden) {
+    try {
+      canvas2d.render(options);
+    } catch (error) {
+      canvas2d = undefined;
+      cpuError = (error as Error).message;
+      updatePanels();
+    }
   }
 }
 
 function scheduleDraw() {
-  if (frame || !renderer) return;
+  if (frame || exportButton.disabled) return;
   frame = requestAnimationFrame(() => {
     frame = 0;
     draw();
@@ -78,7 +133,9 @@ function updateControls() {
 function updatePoints(next: HeatPoint[]) {
   points = next;
   count.textContent = new Intl.NumberFormat("zh-CN").format(points.length) + " 个数据点";
-  renderer?.setPoints(points);
+  note.textContent = notes[preset.value as keyof typeof notes];
+  webgl?.setPoints(points);
+  canvas2d?.setPoints(points);
   scheduleDraw();
 }
 
@@ -88,37 +145,40 @@ function currentDataset() {
 }
 
 function appendPoint(x: number, y: number) {
-  if (!renderer) return;
   if (points.length >= maxPoints) {
     message("已达到 50,000 个点。", true);
     return;
   }
-  updatePoints([...points, { x, y, weight: 1 }]);
+  const clamp = (value: number) => Math.min(1, Math.max(0, value));
+  updatePoints([...points, { x: clamp(x), y: clamp(y), weight: 1 }]);
 }
 
-function initialize() {
-  try {
-    renderer = new HeatmapRenderer(canvas);
-    renderer.setPoints(points);
-    if (draw()) {
-      exportButton.disabled = false;
-      canvas.removeAttribute("aria-disabled");
-      message();
-    }
-  } catch (error) {
-    disableRendering();
-    message((error as Error).message, true);
-  }
+function reflectDemo() {
+  const url = new URL(location.href);
+  url.searchParams.set("renderer", engine.value);
+  if (preset.value !== "custom") url.searchParams.set("demo", preset.value);
+  history.replaceState(null, "", url);
 }
 
 for (const [key, name] of Object.entries(datasetNames)) preset.add(new Option(name, key));
 const custom = new Option("导入的数据", "custom");
 custom.hidden = true;
 preset.add(custom);
-preset.value = "clusters";
+const params = new URLSearchParams(location.search);
+const requestedDemo = params.get("demo");
+preset.value = requestedDemo && Object.hasOwn(datasetNames, requestedDemo) ? requestedDemo : "clusters";
+const requestedRenderer = params.get("renderer");
+engine.value = requestedRenderer === "canvas" || requestedRenderer === "webgl" ? requestedRenderer : "compare";
+
 preset.addEventListener("change", () => {
   updatePoints(currentDataset());
+  reflectDemo();
   message();
+});
+engine.addEventListener("change", () => {
+  ensureRenderers();
+  reflectDemo();
+  scheduleDraw();
 });
 inputs.forEach(({ key, input, output }) => {
   input.addEventListener("input", () => {
@@ -155,29 +215,55 @@ file.addEventListener("change", async () => {
   } catch (error) {
     message((error as Error).message, true);
   } finally {
-    file.value = "";
+    if (file.files?.[0] === selected) file.value = "";
   }
 });
-canvas.addEventListener("click", (event) => {
-  const rect = canvas.getBoundingClientRect();
-  appendPoint((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
-});
-canvas.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    appendPoint(0.5, 0.5);
-  }
-});
-canvas.addEventListener("webglcontextlost", (event) => {
+for (const canvas of [gpuCanvas, cpuCanvas]) {
+  canvas.addEventListener("click", (event) => {
+    const rect = canvas.getBoundingClientRect();
+    appendPoint((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
+  });
+  canvas.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      appendPoint(0.5, 0.5);
+    }
+  });
+}
+gpuCanvas.addEventListener("webglcontextlost", (event) => {
   event.preventDefault();
-  disableRendering();
-  message("WebGL 上下文已丢失，正在等待浏览器恢复。", true);
+  webgl = undefined;
+  gpuError = "WebGL 2 上下文已丢失，等待浏览器恢复。";
+  ensureRenderers();
+  scheduleDraw();
 });
-canvas.addEventListener("webglcontextrestored", initialize);
+gpuCanvas.addEventListener("webglcontextrestored", () => {
+  gpuError = "";
+  ensureRenderers();
+  scheduleDraw();
+});
 exportButton.addEventListener("click", () => {
-  // Snapshot immediately after drawing, before WebGL discards the drawing buffer.
-  if (!draw()) return;
-  canvas.toBlob((blob) => {
+  // Snapshot before WebGL discards its drawing buffer.
+  draw();
+  const visible = [
+    ...(!gpuPanel.hidden ? [gpuCanvas] : []),
+    ...(!cpuPanel.hidden ? [cpuCanvas] : []),
+  ];
+  if (!visible.length) return;
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = visible.reduce((total, canvas) => total + canvas.width, 0);
+  exportCanvas.height = Math.max(...visible.map((canvas) => canvas.height));
+  const context = exportCanvas.getContext("2d");
+  if (!context) {
+    message("无法创建 PNG 导出画布。", true);
+    return;
+  }
+  let x = 0;
+  for (const canvas of visible) {
+    context.drawImage(canvas, x, 0);
+    x += canvas.width;
+  }
+  exportCanvas.toBlob((blob) => {
     if (!blob) {
       message("PNG 导出失败，请重试。", true);
       return;
@@ -192,6 +278,9 @@ exportButton.addEventListener("click", () => {
 });
 
 updateControls();
-updatePoints(points);
-initialize();
-new ResizeObserver(scheduleDraw).observe(canvas);
+updatePoints(currentDataset());
+ensureRenderers();
+scheduleDraw();
+const observer = new ResizeObserver(scheduleDraw);
+observer.observe(gpuCanvas);
+observer.observe(cpuCanvas);

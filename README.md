@@ -1,8 +1,18 @@
 # WebGL-HeatMap
 
-基于 TypeScript 和 WebGL 2 的加权点热力图。浏览器直接用 GPU 累加密度并映射颜色。演示提供城市热点、交通走廊和均匀分布三组示例，可调整半径、强度、阈值和配色，导入 CSV，在画布上加点并导出 PNG。
+用 TypeScript 在浏览器里绘制加权点热力图。可以独立运行 Canvas 2D 或 WebGL 2，也可以并排查看，两种方式共用数据、半径、强度、阈值和色带。支持导入 CSV、在画布上加点和导出 PNG。
 
 [打开在线演示](https://wshxbqq.github.io/WebGL-HeatMap/)
+
+## 演示
+
+| 示例 | 可以观察什么 |
+| --- | --- |
+| [城市热点 · 并排对照](https://wshxbqq.github.io/WebGL-HeatMap/?demo=clusters&renderer=compare) | 离散的加权点怎样形成聚集区域 |
+| [交通走廊 · WebGL 2](https://wshxbqq.github.io/WebGL-HeatMap/?demo=corridors&renderer=webgl) | 沿线热点随半径变大逐渐连成走廊 |
+| [均匀分布 · Canvas 2D](https://wshxbqq.github.io/WebGL-HeatMap/?demo=uniform&renderer=canvas) | 调高阈值，筛去密度较低的区域 |
+| [权重与叠加 · 并排对照](https://wshxbqq.github.io/WebGL-HeatMap/?demo=overlap&renderer=compare) | 两个重合的半权重点如何得到与单个全权重点相同的峰值 |
+| [万点压力测试 · 并排对照](https://wshxbqq.github.io/WebGL-HeatMap/?demo=scale&renderer=compare) | 12,000 个样本点下两种实现的交互表现 |
 
 ## 本地运行
 
@@ -57,17 +67,18 @@ function unmount() {
 }
 ```
 
-## GPU 渲染流程
+## 渲染流程
 
 1. **密度累加**。用实例化绘制为每个点生成一个四边形。片元着色器按距离计算高斯形状的权重，通过加法混合把重叠贡献写到同一张密度纹理。
 2. **色带映射**。全屏着色器读取密度纹理，应用强度和阈值，并在五个色标间插值。演示里的密度用来比较画面内的相对热点。
-3. **缓冲区与尺寸**。可渲染浮点纹理的设备使用 RGBA16F，其余 WebGL 2 设备使用 RGBA8。8 位路径在累加前应用增益，低权重贡献会受量化精度影响。按画布实际尺寸分配缓冲区，支持非 2 次幂尺寸。
+3. **WebGL 缓冲区与尺寸**。可渲染浮点纹理的设备使用 RGBA16F，其余 WebGL 2 设备使用 RGBA8。8 位路径在累加前应用增益，低权重贡献会受量化精度影响。按画布实际尺寸分配缓冲区，支持非 2 次幂尺寸。
+
+Canvas 2D 版本在 [src/canvas-heatmap.ts](src/canvas-heatmap.ts)。它把同一种径向核累加到 CPU 浮点数组，再对照色带写入 ImageData。大量数据或高像素比场景下会降低内部采样分辨率，画布继续按页面尺寸显示。
 
 旧项目可以继续引用原路径的 [WebGL.HeatMap.js](WebGL.HeatMap.js)。原有 [demo.html](demo.html) 也保留在仓库根目录。
 
-## 感谢赞助
+## 特别感谢
 
-感谢 **智审标（SmartBid）** 赞助本项目。智审标提供招投标文件审查，支持核对资格条件、条款响应和报价，报告附原件页码供复核。
+感谢**智审标（SmartBid）**。智审标提供招投标文件审查，支持核对资格条件、条款响应与报价，审查报告附原件页码供复核。
 
-- [智审标官网](https://biao.vvcut.cn/)
-- [智审标开源 Agent Skill · GitHub](https://github.com/wshxbqq/smartbid-tender-review)
+[智审标官网](https://biao.vvcut.cn/) · [智审标开源 Skill](https://github.com/wshxbqq/smartbid-tender-review)
